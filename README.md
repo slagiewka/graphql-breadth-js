@@ -6,13 +6,19 @@ Unlike graphql-js depth traversal, this executor operates breadth-first: every o
 
 ## Benchmarks
 
-Single-machine numbers from `pnpm run bench:*` on an M2 MacBook Air, Node 22.
+**Speed:** single-machine numbers from `pnpm run bench:*` on an M2 MacBook Air, Node 22.
+
+**GC pressure:** numbers from `pnpm run mem:*`. The metric is wall-clock time V8 spent in GC during the run, divided by iterations — a direct proxy for allocation volume. Lower is better. (Heap bytes/iter would be more direct, but V8 triggers GC mid-run on workloads this size, so GC time is the more reliable signal.)
+
+_Some comparisons drop rows due to weak signal._
 
 ### Flat list
 
 ```graphql
 query { widgets(first: N) { id } }
 ```
+
+**Speed**
 
 | size  | graphql-js | graphql-breadth | ratio                   |
 | ----- | ---------- | --------------- | ----------------------- |
@@ -22,12 +28,22 @@ query { widgets(first: N) { id } }
 | 1000  | 2.1k i/s   | 4.4k i/s        | breadth 2.13× faster    |
 | 10000 | 202 i/s    | 449 i/s         | breadth 2.23× faster    |
 
+**GC pressure**
+
+| size  | graphql-js | graphql-breadth | ratio                   |
+| ----- | ---------- | --------------- | ----------------------- |
+| 100   | 1.9µs/iter | 0.7µs/iter      | breadth 2.80× less GC   |
+| 1000  | 9.0µs/iter | 2.1µs/iter      | breadth 4.39× less GC   |
+| 10000 | 239µs/iter | 31µs/iter       | breadth 7.71× less GC   |
+
 ### Tree within list
 
 ```graphql
 # inner tree depth D
 query { widgets(first: N) { widget { widget { id } id } id } }
 ```
+
+**Speed**
 
 | D × N    | graphql-js | graphql-breadth | ratio                |
 | -------- | ---------- | --------------- | -------------------- |
@@ -38,11 +54,22 @@ query { widgets(first: N) { widget { widget { id } id } id } }
 | 5 × 100  | 2.7k i/s   | 6.9k i/s        | breadth 2.56× faster |
 | 5 × 1000 | 273 i/s    | 740 i/s         | breadth 2.71× faster |
 
+**GC pressure**
+
+| D × N    | graphql-js | graphql-breadth | ratio                 |
+| -------- | ---------- | --------------- | --------------------- |
+| 1 × 100  | 3.2µs/iter | 0.6µs/iter      | breadth 5.07× less GC |
+| 1 × 1000 | 14µs/iter  | 3.7µs/iter      | breadth 3.94× less GC |
+| 5 × 100  | 6.1µs/iter | 1.1µs/iter      | breadth 5.64× less GC |
+| 5 × 1000 | 52µs/iter  | 12µs/iter       | breadth 4.20× less GC |
+
 ### List with batched lazy field (DataLoader promises)
 
 ```graphql
 query { widgets(first: N) { id lazy } }  # N promises
 ```
+
+**Speed**
 
 | size  | graphql-js | graphql-breadth | ratio                |
 | ----- | ---------- | --------------- | -------------------- |
@@ -52,11 +79,21 @@ query { widgets(first: N) { id lazy } }  # N promises
 | 1000  | 758 i/s    | 2.4k i/s        | breadth 3.20× faster |
 | 10000 | 47 i/s     | 244 i/s         | breadth 5.18× faster |
 
+**GC pressure**
+
+| size  | graphql-js   | graphql-breadth | ratio                 |
+| ----- | ------------ | --------------- | --------------------- |
+| 100   | 6.2µs/iter   | 0.3µs/iter      | breadth 18.7× less GC |
+| 1000  | 110µs/iter   | 2.3µs/iter      | breadth 47.1× less GC |
+| 10000 | 5247µs/iter  | 44µs/iter       | breadth 119× less GC  |
+
 ### Deep flat tree (no breadth)
 
 ```graphql
 query { widget { widget { widget { id } id } id } }  # depth D
 ```
+
+**Speed**
 
 | depth | graphql-js | graphql-breadth | ratio                   |
 | ----- | ---------- | --------------- | ----------------------- |
@@ -65,76 +102,33 @@ query { widget { widget { widget { id } id } id } }  # depth D
 | 10    | 125k i/s   | 62k i/s         | graphql-js 2.02× faster |
 | 18    | 69k i/s    | 34k i/s         | graphql-js 2.00× faster |
 
-### GC pressure
-
-Numbers from `pnpm run mem:*`. The metric is wall-clock time V8 spent in GC during the run, divided by iterations — a direct proxy for allocation volume. Lower is better. (Heap bytes/iter would be more direct, but V8 triggers GC mid-run on workloads this size, deflating the per-iter delta and making it unreliable. GC time is the reliable signal.)
-
-#### Flat list
-
-```graphql
-query { widgets(first: N) { id } }
-```
-
-| size  | graphql-js | graphql-breadth | ratio                   |
-| ----- | ---------- | --------------- | ----------------------- |
-| 100   | 1.9µs/iter | 0.7µs/iter      | breadth 2.80× less GC   |
-| 1000  | 9.0µs/iter | 2.1µs/iter      | breadth 4.39× less GC   |
-| 10000 | 239µs/iter | 31µs/iter       | breadth 7.71× less GC   |
-
-#### Tree within list
-
-```graphql
-# inner tree depth D
-query { widgets(first: N) { widget { widget { id } id } id } }
-```
-
-| D × N    | graphql-js | graphql-breadth | ratio                 |
-| -------- | ---------- | --------------- | --------------------- |
-| 1 × 100  | 3.2µs/iter | 0.6µs/iter      | breadth 5.07× less GC |
-| 1 × 1000 | 14µs/iter  | 3.7µs/iter      | breadth 3.94× less GC |
-| 5 × 100  | 6.1µs/iter | 1.1µs/iter      | breadth 5.64× less GC |
-| 5 × 1000 | 52µs/iter  | 12µs/iter       | breadth 4.20× less GC |
-
-#### List with batched lazy field (DataLoader promises)
-
-```graphql
-query { widgets(first: N) { id lazy } }  # N promises
-```
-
-| size  | graphql-js   | graphql-breadth | ratio                 |
-| ----- | ------------ | --------------- | --------------------- |
-| 100   | 6.2µs/iter   | 0.3µs/iter      | breadth 18.7× less GC |
-| 1000  | 110µs/iter   | 2.3µs/iter      | breadth 47.1× less GC |
-| 10000 | 5247µs/iter  | 44µs/iter       | breadth 119× less GC  |
-
-#### Deep flat tree (no breadth)
-
-```graphql
-query { widget { widget { widget { id } id } id } }  # depth D
-```
+**GC pressure**
 
 | depth | graphql-js | graphql-breadth | ratio                 |
 | ----- | ---------- | --------------- | --------------------- |
 | 1     | 0.3µs/iter | 0.2µs/iter      | breadth 1.22× less GC |
+| 5     | 1.1µs/iter | 0.5µs/iter      | breadth 2.37× less GC |
 | 10    | 1.2µs/iter | 0.4µs/iter      | breadth 2.89× less GC |
 | 18    | 2.3µs/iter | 0.6µs/iter      | breadth 4.13× less GC |
 
 ### Where each executor wins
 
-- **graphql-js wins on speed for deep, narrow queries** — every level holds one object, so breadth-first never engages, and graphql-js's tight inner loop runs unopposed.
+- **graphql-js wins on speed for deep, narrow queries** — every level holds one object, so breadth-first never engages, and graphql-js's tight inner loop runs unopposed. However, lacking repetition means the disadvantage doesn't scale, so is negligible (~15µs vs ~30µs as a one-time cost per query, even at depth 18).
 - **graphql-breadth wins on speed once a level holds multiple objects**. The win grows with breadth (2–2.5× at 100+) because per-field work amortizes across the level instead of repeating per object.
-- **graphql-breadth wins on GC pressure in every shape tested**, even the deep-narrow case where graphql-js wins on speed. One `ExecutionField` per level allocates less than one frame per resolution.
-- **The lazy field case is the headline.** graphql-js + DataLoader pays a Promise per value per leaf; the breadth-first lazy queue drains synchronously inside the executor — no Promise allocations on the hot path. At 10k objects the GC gap is ~120×, and graphql-js spends roughly a quarter of its wall-clock in GC.
+- **graphql-breadth wins on GC pressure in every shape tested**, even the deep-narrow case where graphql-js wins on speed. One long-lived `ExecutionField` per level allocates less than one short-lived frame per resolution.
+- **The lazy field case is the headline.** graphql-js + DataLoader pays a Promise per value per leaf; the breadth-first lazy queue drains synchronously inside the executor — no Promise allocations on the hot path. At 10k objects the GC gap is 119× (5247µs vs 44µs/iter), and graphql-js spends ~25% of its wall-clock in GC (5247µs of 21277µs/iter at 47 i/s).
 
 Run the benchmarks yourself:
 
 ```bash
 pnpm install
-DEPTHS=1,10,18 pnpm run bench:tree
 SIZES=1,10,100,1000,10000 pnpm run bench:list
+FIELDS=lazy SIZES=1,10,100,1000,10000 pnpm run bench:list
+DEPTHS=1,5,10,18 pnpm run bench:tree
 DEPTHS=1,5 BREADTHS=10,100,1000 pnpm run bench:tree-list
 pnpm run mem:tree
 pnpm run mem:list
+FIELDS=lazy pnpm run mem:list
 pnpm run mem:tree-list
 ```
 
@@ -156,7 +150,9 @@ const { result } = Executor.build({
   schema,
   document: `{ hello }`,
   resolvers: {
-    Query: { hello: new ObjectKeyResolver("hello") },
+    Query: {
+      hello: new ObjectKeyResolver("hello"),
+    },
   },
   rootObject: { hello: "world" },
 });
@@ -164,7 +160,7 @@ const { result } = Executor.build({
 console.log(result); // { data: { hello: "world" } }
 ```
 
-An executor is built with a resolver map that keys `{ TypeName => { fieldName => new FieldResolver() } }` to provide all schema field resolvers. All options:
+An executor is built with a resolver map that keys `{ TypeName => { fieldName => new FieldResolver() } }` to provide all schema field resolvers. Additional options:
 
 ```ts
 Executor.build({
@@ -181,7 +177,7 @@ Executor.build({
 
 ## Resolvers
 
-Resolvers recieve an `execField` with all field state, including `objects`, `arguments`, and `context`. A resolver must return a mapped set of results derived from `execField.objects`. Returning an unmatched results size is a programming error.
+Resolvers receive an `execField` with all field state, including `objects`, `arguments`, and `context`. A resolver must return a mapped set of results derived from `execField.objects`. Returning an unmatched result size is a programming error.
 
 ```ts
 import { FieldResolver } from "graphql-breadth";
@@ -189,7 +185,7 @@ import type { ExecutionField } from "graphql-breadth";
 
 class FullName extends FieldResolver {
   resolve(execField: ExecutionField) {
-    if !execField.context.authorized { return execField.resolveAll(null) }
+    if (!execField.context.authorized) return execField.resolveAll(null);
 
     return execField.mapObjects((user) => `${user.firstName} ${user.lastName}`);
   }
@@ -219,25 +215,27 @@ const resolvers = {
 
 ## Errors
 
-Return a mapped error for an object, or throw an `ExecutionError` within a `mapObjects` loop:
+Map error instances into resolver results, or throw an `ExecutionError` within a `mapObjects` loop:
 
 ```ts
 import { ExecutionError } from "graphql-breadth";
 
 class SecretField extends FieldResolver {
   resolve(execField) {
+    if (!execField.context.authenticated) throw new ExecutionError("Not authorized");
+
     return execField.mapObjects(
-      () => new ExecutionError("Not authorized", { execField }),
+      (obj) => obj.allow() ? obj.secret : new ExecutionError("Not authorized"),
     );
   }
 }
 ```
 
-`ExecutionError` raised outside of `mapObjects` will fail all field positions. Unhandled exceptions will terminate all execution.
+Raising an `ExecutionError` outside of `mapObjects` will fail the field across all objects. Unhandled exceptions will terminate all execution.
 
 ## Lazy batching
 
-Breadth-based fields recieve all `objects` at once, so are implicitly batched. However, lazy batching is still useful when pooling I/O across separate field selections. A `LazyLoader` can be used to pool an entire object set into a single lazy promise. That means only one promise is built _per document selection_, versus _per field instance_ in graphql-js.
+Breadth-based fields receive all `objects` at once, so are implicitly batched. However, lazy batching is still useful when pooling I/O across separate field selections. A `LazyLoader` can pool an entire key set into a single lazy promise. That means only one promise is built _per document selection_, versus _per field instance_ in graphql-js.
 
 ```ts
 import { LazyLoader, FieldResolver } from "graphql-breadth";
@@ -259,7 +257,7 @@ class Author extends FieldResolver {
 }
 ```
 
-Chain a post-load callback with `.then(...)`:
+When passing in lazy keys, null keys may be submitted to hold a results position. These will get dropped from the loader set and pass through as null results. Chain a post-load callback with `.then(...)`:
 
 ```ts
 class AuthorName extends FieldResolver {
@@ -271,15 +269,20 @@ class AuthorName extends FieldResolver {
 }
 ```
 
-## Arguments and variables
-
-Arguments and variables are coerced by graphql-js's native machinery (`getArgumentValues`, `getVariableValues`) — defaults, enum coercion, input objects, and variable type errors all behave exactly as in graphql-js.
+Awaiting and chaining is also supported:
 
 ```ts
-class Hero extends FieldResolver {
+class FancyLazy extends FieldResolver {
   resolve(execField) {
-    const episode = execField.arguments.episode; // already coerced
-    return execField.mapObjects(() => lookupHero(episode));
+    pendingPosts = execField
+      .lazy({ loaderClass: UserById, keys: ... })
+      .then((users) => execField.lazy({ loaderClass: PostsById, keys: users }));
+
+    pendingPromos = execField
+      .lazy({ loaderClass: PromosById, keys: ... })
+
+    return execField.awaitAll([pendingPosts, pendingPromos])
+      .then((posts, promos) => posts.zip(promos));
   }
 }
 ```
@@ -304,11 +307,12 @@ Without `__type__`, the executor falls back to reading `__typename` off the obje
 Before execution begins, the planner walks the tree bottom-up and calls `plan()` on every field's resolver. A field's children plan first, so they can annotate their ancestors with dependency information. Both execution scopes and fields have an `attributes` Map for sharing state between resolvers in the same planning pass.
 
 ```ts
-// Child field resolver
+// Field resolver for `Widget.sprockets`.
+// Plans first and annotates the scope's parent field to include sprockets.
 class Sprockets extends FieldResolver {
   plan(execField) {
     // Tell the scope above to join sprockets.
-    execField.scope.parent.attributes.set("includeSprockets", true);
+    execField.scope.parentField.attributes.set("includeSprockets", true);
   }
 
   resolve(execField) {
@@ -316,11 +320,25 @@ class Sprockets extends FieldResolver {
   }
 }
 
-// Parent field resolver
+// Field resolver for `Query.widgets`.
+// Can check itself for annotations passed upwards by children.
 class Widgets extends FieldResolver {
   resolve(execField) {
-    const include = execField.scope.attributes.get("includeSprockets") === true;
-    return db.widgets({ join: include ? ["sprockets"] : [] });
+    const includeSprockets = execField.attributes.get("includeSprockets") === true;
+    return db.widgets({ join: includeSprockets ? ["sprockets"] : [] });
+  }
+}
+```
+
+## Arguments and variables
+
+Arguments and variables are coerced by graphql-js's native machinery (`getArgumentValues`, `getVariableValues`) — defaults, enum coercion, input objects, and variable type errors all behave exactly as in graphql-js.
+
+```ts
+class Hero extends FieldResolver {
+  resolve(execField) {
+    const episode = execField.arguments.episode; // already coerced
+    return execField.mapObjects(() => lookupHero(episode));
   }
 }
 ```
