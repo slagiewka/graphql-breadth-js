@@ -177,7 +177,7 @@ Executor.build({
 
 ## Resolvers
 
-Resolvers receive an `execField` with all field state, including `objects`, `arguments`, and `context`. A resolver must return a mapped set of results derived from `execField.objects`. Returning an unmatched result size is a programming error.
+Resolvers receive an `execField` with all field state, including `objects`, `arguments`, and `context`. A resolver must return a mapped set of results derived from `execField.objects`. Returning results with unmatched cardinality is a programming error.
 
 ```ts
 import { FieldResolver } from "graphql-breadth";

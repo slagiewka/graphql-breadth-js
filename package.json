@@ -1,0 +1,37 @@
+{
+  "name": "graphql-breadth",
+  "version": "0.1.0",
+  "description": "Breadth-first GraphQL executor",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "bench:tree": "tsx benchmark/tree.ts",
+    "bench:list": "tsx benchmark/list.ts",
+    "bench:tree-list": "tsx benchmark/tree_list.ts",
+    "mem:tree": "NODE_OPTIONS=--expose-gc tsx benchmark/memory_tree.ts",
+    "mem:list": "NODE_OPTIONS=--expose-gc tsx benchmark/memory_list.ts",
+    "mem:tree-list": "NODE_OPTIONS=--expose-gc tsx benchmark/memory_tree_list.ts"
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "dependencies": {
+    "graphql": "^16.9.0"
+  },
+  "devDependencies": {
+    "@types/jest": "^29.5.12",
+    "@types/node": "^20.12.7",
+    "dataloader": "^2.2.3",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.1.2",
+    "tsx": "^4.21.0",
+    "typescript": "^5.4.5"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
