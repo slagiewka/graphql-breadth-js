@@ -62,7 +62,10 @@ export class ExecutionError extends BreadthError {
       if (err === UNREPORTED_ERROR) return err;
       if (err.execField !== (options.execField ?? null) || err.cause !== options.cause) {
         const dup = Object.create(Object.getPrototypeOf(err)) as ExecutionError;
-        Object.assign(dup, err);
+        // `Object.assign` only copies enumerable own properties, but V8 stores
+        // `message` and `stack` as non-enumerable own properties on Error
+        // instances — they would be lost. Copy via property descriptors instead.
+        Object.defineProperties(dup, Object.getOwnPropertyDescriptors(err));
         if (options.execField !== undefined) dup.execField = options.execField ?? null;
         if (options.cause !== undefined) dup.cause = options.cause;
         return dup;

@@ -20,6 +20,12 @@ export {
   TYPE_RESOLVERS,
 } from "./introspection";
 export {
+  InterpretedFieldResolver,
+  InterpretedPromiseLoader,
+  interpretSchema,
+  type InterpretSchemaOptions,
+} from "./interpreter";
+export {
   BreadthError,
   DocumentError,
   ImplementationError,

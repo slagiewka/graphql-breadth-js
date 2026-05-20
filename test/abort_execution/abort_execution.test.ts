@@ -3,6 +3,7 @@ import {
   Executor,
   FieldResolver,
   LazyLoader,
+  type GraphQLResult,
   type LazyLoaderConstructor,
   type ResolveResult,
   type ResolverMap,
@@ -91,14 +92,14 @@ function executeOp(
   document: string,
   rootObject: unknown,
   context: Record<string, unknown> = {},
-) {
+): GraphQLResult {
   return Executor.build({
     schema: SCHEMA,
     document,
     resolvers: RESOLVERS,
     rootObject,
     context,
-  }).result;
+  }).resultSync;
 }
 
 describe("abort execution", () => {

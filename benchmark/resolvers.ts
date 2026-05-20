@@ -18,7 +18,7 @@ export class FieldKeyResolver extends FieldResolver {
   }
 }
 
-// Batched lazy loader. `map = true` means performMap returns results 1:1 with pending keys.
+// Batched lazy loader. `map = true` means perform returns results 1:1 with pending keys.
 export class BreadthBatchLoader extends LazyLoader {
   override map = true;
   private key: string;
@@ -33,7 +33,7 @@ export class BreadthBatchLoader extends LazyLoader {
     return obj;
   }
 
-  override performMap(keys: unknown[]): unknown[] {
+  override perform(keys: unknown[]): unknown[] {
     const k = this.key;
     return keys.map((obj) => (obj as Record<string, unknown>)[k]);
   }
