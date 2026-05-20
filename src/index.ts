@@ -15,6 +15,11 @@ export {
   type ResolveResult,
 } from "./field_resolvers";
 export {
+  TYPENAME_RESOLVER,
+  ENTRYPOINT_RESOLVERS,
+  TYPE_RESOLVERS,
+} from "./introspection";
+export {
   BreadthError,
   DocumentError,
   ImplementationError,

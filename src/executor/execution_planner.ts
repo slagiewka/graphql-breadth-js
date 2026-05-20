@@ -1,6 +1,8 @@
 import {
-  GraphQLString,
   Kind,
+  SchemaMetaFieldDef,
+  TypeMetaFieldDef,
+  TypeNameMetaFieldDef,
   isAbstractType,
   isLeafType,
   getArgumentValues,
@@ -18,6 +20,11 @@ import {
 } from "graphql";
 import { DocumentError, ExecutionError } from "../errors";
 import { FieldResolver, ObjectKeyResolver } from "../field_resolvers";
+import {
+  ENTRYPOINT_RESOLVERS as INTROSPECTION_ENTRYPOINT_RESOLVERS,
+  TYPENAME_RESOLVER as INTROSPECTION_TYPENAME_RESOLVER,
+  TYPE_RESOLVERS as INTROSPECTION_TYPE_RESOLVERS,
+} from "../introspection";
 import { unwrapType } from "../util";
 import { ExecutionField } from "./execution_field";
 import { ExecutionScope } from "./execution_scope";
@@ -210,25 +217,44 @@ export class ExecutionPlanner {
     const firstNode = nodes[0] as FieldNode;
     const nodeName = firstNode.name.value;
 
+    let definition: GraphQLField<unknown, unknown> | undefined;
+    let resolver: FieldResolver | null = null;
+
     if (nodeName === "__typename") {
-      return new ExecutionField(key, {
-        nodes: [...nodes],
-        scope,
-        definition: TypenameResolver.definition,
-        resolver: TypenameResolver.instance,
-        args: {},
-      });
+      definition = TypeNameMetaFieldDef as GraphQLField<unknown, unknown>;
+      resolver = INTROSPECTION_TYPENAME_RESOLVER;
+    } else if (
+      nodeName === "__schema" &&
+      scope.parentType === this.executor.schema.getQueryType()
+    ) {
+      definition = SchemaMetaFieldDef as GraphQLField<unknown, unknown>;
+      resolver = INTROSPECTION_ENTRYPOINT_RESOLVERS["__schema"] ?? null;
+    } else if (
+      nodeName === "__type" &&
+      scope.parentType === this.executor.schema.getQueryType()
+    ) {
+      definition = TypeMetaFieldDef as GraphQLField<unknown, unknown>;
+      resolver = INTROSPECTION_ENTRYPOINT_RESOLVERS["__type"] ?? null;
+    } else {
+      definition = scope.parentType.getFields()[nodeName];
+      if (!definition) {
+        throw new DocumentError(
+          `No field '${nodeName}' on type '${scope.parentType.name}'`,
+        );
+      }
+      // Introspection types (__Schema, __Type, __Field, __InputValue, __EnumValue, __Directive)
+      // get their dispatch before user resolvers, matching the Ruby pattern.
+      resolver =
+        (INTROSPECTION_TYPE_RESOLVERS[scope.parentType.name]?.[nodeName] as
+          | FieldResolver
+          | undefined) ?? null;
     }
 
-    const definition = scope.parentType.getFields()[nodeName];
-    if (!definition) {
-      throw new DocumentError(
-        `No field '${nodeName}' on type '${scope.parentType.name}'`,
-      );
+    if (!resolver) {
+      resolver =
+        (this.resolvers[scope.parentType.name]?.[nodeName] as FieldResolver | undefined) ??
+        null;
     }
-
-    let resolver: FieldResolver | null =
-      this.resolvers[scope.parentType.name]?.[nodeName] as FieldResolver | undefined ?? null;
     if (!resolver) resolver = this.executor.defaultFieldResolver;
     if (!resolver) {
       // last-resort: hash key resolver mirroring graphql-js's defaultFieldResolver
@@ -255,24 +281,5 @@ export class ExecutionPlanner {
       args,
       argumentErrors,
     });
-  }
-}
-
-class TypenameResolver extends FieldResolver {
-  static readonly definition: GraphQLField<unknown, unknown> = {
-    name: "__typename",
-    description: undefined,
-    type: GraphQLString,
-    args: [],
-    resolve: undefined,
-    subscribe: undefined,
-    deprecationReason: undefined,
-    extensions: {},
-    astNode: undefined,
-  };
-  static readonly instance: TypenameResolver = new TypenameResolver();
-
-  override resolve(execField: ExecutionField): unknown[] {
-    return execField.mapObjects(() => execField.scope.parentType.name);
   }
 }

@@ -578,7 +578,7 @@ export class Executor {
     nextResults: Record<string, unknown>[],
   ): unknown {
     if (object == null || object instanceof Error) {
-      return this.buildMissingValue(field, currentType, object as Error | null);
+      return this.buildMissingValue(field, currentType, object instanceof Error ? object : null);
     }
     if (isListLike(currentType)) {
       if (!Array.isArray(object)) {
@@ -604,7 +604,7 @@ export class Executor {
     val: unknown,
   ): unknown {
     if (val == null || val instanceof Error) {
-      return this.buildMissingValue(field, currentType, val as Error | null);
+      return this.buildMissingValue(field, currentType, val instanceof Error ? val : null);
     }
     if (isListLike(currentType)) {
       if (!Array.isArray(val)) {
