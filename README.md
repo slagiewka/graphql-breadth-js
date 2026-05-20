@@ -4,6 +4,8 @@ A basic breadth-first GraphQL executor based on [Shopify's Cardinal engine](http
 
 Unlike graphql-js depth traversal, this executor operates breadth-first: every object at a given depth resolves the same field together, then the executor descends a level. This allows per-field overhead to amortize across the entire breadth of a level, and lets lazy loads batch using one Promise _per selection_ rather than _per field instance_.
 
+_Highly experimental._
+
 ## Benchmarks
 
 **Speed:** single-machine numbers from `pnpm run bench:*` on an M2 MacBook Air, Node 22.
@@ -132,6 +134,11 @@ FIELDS=lazy pnpm run mem:list
 pnpm run mem:tree-list
 ```
 
+## Caveats
+
+- No subscriptions, defer, or stream. Theoretically possible with major rearchitectures.
+- Breadth-first assumes that all objects at a level _want to batch_. If you have slowest-object-blocking concerns, then you want traditional tree-based resolution.
+
 ## Install
 
 ```bash
@@ -241,8 +248,8 @@ Breadth-based fields receive all `objects` at once, so are implicitly batched. H
 import { LazyLoader, FieldResolver } from "graphql-breadth";
 
 class UserById extends LazyLoader {
-  map = true; // performMap returns results 1:1 with keys
-  performMap(ids: string[]): User[] {
+  map = true; // perform returns results 1:1 with keys
+  perform(ids: string[]): User[] {
     return db.usersWhereIdIn(ids); // one query for the entire level
   }
 }
@@ -253,6 +260,23 @@ class Author extends FieldResolver {
       loaderClass: UserById,
       keys: execField.mapObjects((post) => post.authorId),
     });
+  }
+}
+```
+
+Two orthogonal flags configure how a loader delivers its results:
+
+- `map` — when `true`, `perform`'s return value IS the mapped result array. When `false` (the default), the return value is ignored and the implementation calls `fulfillKey(key, result)` (or `fulfillIdentity`) for each key it resolves.
+- `async` — when `true`, the loader implements `performAsync` instead of `perform`, and the executor awaits the returned Promise before resolving any waiting fields. When `false` (the default), `perform` runs synchronously and the executor drains the lazy queue without yielding to the microtask queue.
+
+Async loaders are the canonical way to plug remote I/O into the breadth model. Because `performAsync` is called once per document selection — not per field instance — a list of N objects produces a single Promise, regardless of N:
+
+```ts
+class UserByIdAsync extends LazyLoader {
+  async = true;
+  map = true;
+  async performAsync(ids: string[]): Promise<User[]> {
+    return await db.usersWhereIdIn(ids); // one round-trip for the whole level
   }
 }
 ```
@@ -330,18 +354,36 @@ class Widgets extends FieldResolver {
 }
 ```
 
-## Arguments and variables
+## GraphQL JS resolvers
 
-Arguments and variables are coerced by graphql-js's native machinery (`getArgumentValues`, `getVariableValues`) — defaults, enum coercion, input objects, and variable type errors all behave exactly as in graphql-js.
+For schemas built with graphql-js's executable schema pattern (where each field carries a `resolve` function with the `(source, args, context, info)` signature), `interpretSchema` walks the schema and produces a `ResolverMap` whose entries delegate to those resolvers. Pass the result to `Executor.build` to run an existing graphql-js schema through the breadth executor unchanged:
 
 ```ts
-class Hero extends FieldResolver {
-  resolve(execField) {
-    const episode = execField.arguments.episode; // already coerced
-    return execField.mapObjects(() => lookupHero(episode));
-  }
-}
+import { Executor, interpretSchema } from "graphql-breadth";
+import { schema } from "./my-graphql-js-schema";
+
+const { result } = Executor.build({
+  schema,
+  document: `{ hero { name } }`,
+  resolvers: interpretSchema(schema),
+});
 ```
+
+Mix interpreted and native resolvers by passing a breadth-native `ResolverMap` as the second argument. Entries are merged field-by-field over the interpreted defaults, so native resolvers retain their breadth-first advantages (single invocation per level, lazy batching, planning) while the rest of the schema runs through the per-object interpreter:
+
+```ts
+const resolvers = interpretSchema(schema, {
+  User: {
+    posts: new PostsLoader(), // batched native resolver
+  },
+});
+```
+
+**Support notes:**
+
+- Resolvers that return native Promises are awaited together as one breadth-loader cycle via `InterpretedPromiseLoader`, so a list of N async resolvers still yields once, not N times. This is generally compatible though may produce different results for situations designed around a depth-based execution flow.
+- Accessing resolver `info.path` is not supported. Breadth has no concept of runtime subtrees (though this gap is possible to fill with overhead).
+- No support for lazy abstract type resolution. `resolveType` and `isTypeOf` returning a `Promise` throw an `ImplementationError`.
 
 ## Development
 

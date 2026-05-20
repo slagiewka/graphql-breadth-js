@@ -2,6 +2,7 @@ import { buildSchema } from "graphql";
 import {
   Executor,
   FieldResolver,
+  type GraphQLResult,
   type ResolverMap,
 } from "../../src";
 import type { ExecutionField } from "../../src/executor/execution_field";
@@ -87,14 +88,14 @@ const TEST_RESOLVERS: ResolverMap = {
   },
 };
 
-function executePlanning(document: string, rootObject: unknown = {}) {
+function executePlanning(document: string, rootObject: unknown = {}): GraphQLResult {
   return Executor.build({
     schema: TEST_SCHEMA,
     document,
     resolvers: TEST_RESOLVERS,
     rootObject,
     defaultFieldResolver: new DefaultPlanningResolver(),
-  }).result;
+  }).resultSync;
 }
 
 describe("planning", () => {

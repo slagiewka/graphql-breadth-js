@@ -31,3 +31,11 @@ export function isListLike(type: GraphQLType): type is GraphQLList<GraphQLOutput
 // Sentinel marking "no value installed" — never appears in result.
 // Compared with `===` only.
 export const UNDEFINED: unique symbol = Symbol("undefined");
+
+export function isThenable<T = unknown>(value: unknown): value is PromiseLike<T> {
+  return (
+    value !== null &&
+    (typeof value === "object" || typeof value === "function") &&
+    typeof (value as { then?: unknown }).then === "function"
+  );
+}

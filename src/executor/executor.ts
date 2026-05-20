@@ -33,7 +33,7 @@ import {
 } from "../errors";
 import type { FieldResolver } from "../field_resolvers";
 import { LazyLoader, type LazyLoaderConstructor } from "../lazy_loader";
-import { isListLike, unwrapNonNull, unwrapType, UNDEFINED } from "../util";
+import { isListLike, isThenable, unwrapNonNull, unwrapType, UNDEFINED } from "../util";
 import { AbstractExecutionScope } from "./abstract_execution_scope";
 import { ErrorResultFormatter } from "./error_result_formatter";
 import { ExecutionField } from "./execution_field";
@@ -86,6 +86,7 @@ export class Executor {
   private lazyQueue: ExecutionField[] = [];
   private executed = false;
   private aborted = false;
+  private resultPromise: Promise<GraphQLResult> | null = null;
   // Nested cache: outer keyed by loader constructor (reference identity, fast),
   // inner keyed by JSON.stringify(args). The no-args case (the common one)
   // skips the inner stringify entirely.
@@ -150,9 +151,29 @@ export class Executor {
     this.operation = opAst;
   }
 
-  get result(): GraphQLResult {
-    if (!this.executed) this.execute();
+  get result(): GraphQLResult | Promise<GraphQLResult> {
+    if (this.resultPromise) return this.resultPromise;
+    if (!this.executed) {
+      const ret = this.execute();
+      if (isThenable(ret)) {
+        this.resultPromise = Promise.resolve(ret).then(
+          () => this.resultPayload as GraphQLResult,
+        );
+        return this.resultPromise;
+      }
+    }
     return this.resultPayload as GraphQLResult;
+  }
+
+  get resultSync(): GraphQLResult {
+    const r = this.result;
+    if (isThenable(r)) {
+      throw new ImplementationError(
+        "Executor.resultSync requires synchronous execution, but an async " +
+          "lazy loader was triggered. Use `result` and await it instead.",
+      );
+    }
+    return r;
   }
 
   errorCount(): number {
@@ -238,10 +259,8 @@ export class Executor {
 
   // ===== Main execute =====
 
-  private execute(): void {
+  private execute(): void | Promise<void> {
     this.executed = true;
-    let resultData: unknown = UNDEFINED;
-    let errors: FormattedError[] = [];
 
     if (this.validateDocument) {
       const validationErrors = validate(this.schema, this.document);
@@ -266,6 +285,7 @@ export class Executor {
     }
     this.variables = (coerced as { coerced: Record<string, unknown> }).coerced;
 
+    let planned: ExecutionScope[];
     try {
       const rootScopes = this.buildRootScopes();
       if (rootScopes === null) {
@@ -274,53 +294,75 @@ export class Executor {
         });
         return;
       }
-
-      for (const rootScope of this.planner.planScopes(rootScopes)) {
-        this.execQueue.push(rootScope);
-
-        while (
-          !this.aborted &&
-          (this.execQueue.length > 0 || this.lazyQueue.length > 0)
-        ) {
-          if (this.execQueue.length > 0) {
-            const scope = this.execQueue.shift() as ExecutionScope;
-            this.executeScope(scope);
-          } else {
-            const lazyElements = this.lazyQueue;
-            this.lazyQueue = [];
-            this.executeLazy(lazyElements);
-          }
-        }
-      }
-
-      if (this.invalidatedResults.size > 0) {
-        const rootType = this.rootTypeForOperation(this.operation);
-        const rootSelections = this.operation.selectionSet.selections;
-        const [data, formattedErrors] = this.errorResultFormatter.formatObject(
-          rootType,
-          rootSelections,
-          this.data,
-        );
-        this.data = data ?? {};
-        if (data === null) {
-          // null root data
-          resultData = null;
-        } else {
-          resultData = this.data;
-        }
-        errors = formattedErrors;
-      } else {
-        resultData = this.data;
-      }
+      planned = this.planner.planScopes(rootScopes);
     } catch (ex) {
-      resultData = null;
-      const errs: FormattedError[] = [];
-      this.handleOrReraise(ex).each((e) => errs.push(e.toJSON()));
-      this.resultPayload = this.renderResult({ data: resultData, errors: errs });
+      this.finalizeErrorResult(ex);
       return;
     }
 
+    return this.runScopes(planned, 0);
+  }
+
+  private runScopes(scopes: ExecutionScope[], startIdx: number): void | Promise<void> {
+    for (let i = startIdx; i < scopes.length; i++) {
+      this.execQueue.push(scopes[i] as ExecutionScope);
+      try {
+        const drained = this.drainLoop();
+        if (isThenable(drained)) {
+          const next = i + 1;
+          return Promise.resolve(drained).then(
+            () => this.runScopes(scopes, next),
+            (ex) => this.finalizeErrorResult(ex),
+          );
+        }
+      } catch (ex) {
+        this.finalizeErrorResult(ex);
+        return;
+      }
+    }
+    this.finalizeSuccessResult();
+  }
+
+  private drainLoop(): void | Promise<void> {
+    while (!this.aborted && (this.execQueue.length > 0 || this.lazyQueue.length > 0)) {
+      if (this.execQueue.length > 0) {
+        const scope = this.execQueue.shift() as ExecutionScope;
+        this.executeScope(scope);
+      } else {
+        const lazyElements = this.lazyQueue;
+        this.lazyQueue = [];
+        const ret = this.executeLazy(lazyElements);
+        if (isThenable(ret)) {
+          return Promise.resolve(ret).then(() => this.drainLoop());
+        }
+      }
+    }
+  }
+
+  private finalizeSuccessResult(): void {
+    let resultData: unknown = UNDEFINED;
+    let errors: FormattedError[] = [];
+    if (this.invalidatedResults.size > 0) {
+      const rootType = this.rootTypeForOperation(this.operation);
+      const rootSelections = this.operation.selectionSet.selections;
+      const [data, formattedErrors] = this.errorResultFormatter.formatObject(
+        rootType,
+        rootSelections,
+        this.data,
+      );
+      this.data = data ?? {};
+      resultData = data === null ? null : this.data;
+      errors = formattedErrors;
+    } else {
+      resultData = this.data;
+    }
     this.resultPayload = this.renderResult({ data: resultData, errors });
+  }
+
+  private finalizeErrorResult(ex: unknown): void {
+    const errs: FormattedError[] = [];
+    this.handleOrReraise(ex).each((e) => errs.push(e.toJSON()));
+    this.resultPayload = this.renderResult({ data: null, errors: errs });
   }
 
   private renderResult(options: { data?: unknown; errors?: FormattedError[] } = {}): Record<string, unknown> {
@@ -416,7 +458,7 @@ export class Executor {
 
   // ===== Lazy execution =====
 
-  private executeLazy(lazyFields: ExecutionField[]): void {
+  private executeLazy(lazyFields: ExecutionField[]): void | Promise<void> {
     const pendingLoaders: LazyLoader[] = [];
     for (const byArgs of this.loaderCache.values()) {
       for (const loader of byArgs.values()) {
@@ -433,6 +475,7 @@ export class Executor {
     // abortedSubtree() memoizes positive results onto the scope (sets _aborted),
     // so repeated checks for the same aborted scope are O(1); negative checks
     // walk parents but the depth is typically shallow.
+    const asyncRuns: Promise<void>[] = [];
     for (const loader of pendingLoaders) {
       const loaderFields = loader.promised.map((p) => p.field);
       if (loaderFields.every((f) => f.scope.abortedSubtree())) {
@@ -441,7 +484,24 @@ export class Executor {
       }
 
       try {
-        loader.execute(this.context);
+        if (loader.async) {
+          const ret = loader.execute(this.context) as Promise<void>;
+          const fields = loaderFields;
+          asyncRuns.push(
+            ret.then(undefined, (e) => {
+              // handleOrReraise re-raises non-graphql errors → that throw
+              // rejects the wrapper promise and propagates through Promise.all
+              // up to the executor's drain loop.
+              const handled = this.handleOrReraise(e);
+              for (const field of fields) {
+                const fieldErr = ExecutionError.from(handled, { execField: field });
+                field.result = field.resolveAll(fieldErr);
+              }
+            }),
+          );
+        } else {
+          loader.execute(this.context);
+        }
       } catch (e) {
         const handled = this.handleOrReraise(e);
         for (const field of loaderFields) {
@@ -451,10 +511,17 @@ export class Executor {
       }
     }
 
-    for (const field of lazyFields) {
-      if (field.scope.abortedSubtree()) continue;
-      this.resumeLazyField(field);
+    const resumeAll = (): void => {
+      for (const field of lazyFields) {
+        if (field.scope.abortedSubtree()) continue;
+        this.resumeLazyField(field);
+      }
+    };
+
+    if (asyncRuns.length > 0) {
+      return Promise.all(asyncRuns).then(resumeAll);
     }
+    resumeAll();
   }
 
   private resumeLazyField(field: ExecutionField): void {

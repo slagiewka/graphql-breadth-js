@@ -1,5 +1,5 @@
 import { buildSchema, executeSync, getIntrospectionQuery, parse } from "graphql";
-import { Executor } from "../../src";
+import { Executor, type GraphQLResult } from "../../src";
 
 const SDL = `
   """A character in the saga."""
@@ -67,13 +67,13 @@ function execute(
   document: string,
   variables: Record<string, unknown> = {},
   rootObject: Record<string, unknown> = {},
-) {
+): GraphQLResult {
   return Executor.build({
     schema,
     document,
     variables,
     rootObject,
-  }).result;
+  }).resultSync;
 }
 
 describe("introspection", () => {
@@ -399,7 +399,7 @@ describe("introspection", () => {
       }`,
       variables: {},
       rootObject: {},
-    }).result as {
+    }).resultSync as unknown as {
       data: {
         __type: {
           fields: Array<{ name: string; args: Array<{ defaultValue: string | null }> }>;

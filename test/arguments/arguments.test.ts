@@ -58,7 +58,7 @@ function run(query: string, variables: Record<string, unknown> = {}) {
     resolvers,
     variables,
   });
-  return { result: executor.result, echo: echoResolver };
+  return { result: executor.resultSync, echo: echoResolver };
 }
 
 describe("argument coercion (graphql-js native)", () => {

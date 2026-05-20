@@ -55,19 +55,30 @@ export abstract class LazyLoader<Ctx = unknown> {
   resultsByIdentity: Map<unknown, unknown> = new Map();
   promised: LazyFulfillment[] = [];
 
-  // When `map === true`, `performMap` returns the result array in 1:1 order with pending keys.
-  // When `map === false`, `perform` fills results via `fulfillKey`/`fulfillIdentity`.
+  // Mode flags select how the loader's perform method delivers results.
+  //   - `async === true`  → loader implements `performAsync`, which returns a Promise.
+  //                         The executor awaits it before resolving any waiting fields.
+  //   - `async === false` → loader implements `perform`, sync.
+  //
+  //   - `map === true`    → perform's return value IS the result array, in 1:1 order with
+  //                         the pending keys. The executor writes it into results by identity.
+  //   - `map === false`   → perform's return value is ignored. Implementations fulfill results
+  //                         via `fulfillKey` / `fulfillIdentity`.
+  //
+  // The flags are orthogonal: `async + map` is a valid combination (an async loader whose
+  // resolved value is the cardinality-matched result array).
   map = false;
+  async = false;
 
-  perform(_keys: unknown[], _context: Ctx): void {
+  perform(_keys: unknown[], _context: Ctx): unknown[] | void {
     throw new MethodNotImplementedError(
       "LazyLoader#perform must be implemented",
     );
   }
 
-  performMap(_keys: unknown[], _context: Ctx): unknown[] {
+  performAsync(_keys: unknown[], _context: Ctx): Promise<unknown[] | void> {
     throw new MethodNotImplementedError(
-      "LazyLoader#performMap must be implemented",
+      "LazyLoader#performAsync must be implemented",
     );
   }
 
@@ -131,35 +142,44 @@ export abstract class LazyLoader<Ctx = unknown> {
     return identities.map((identity) => results.get(identity));
   }
 
-  execute(context: Ctx): void {
+  execute(context: Ctx): void | Promise<void> {
     const deferreds = this.promised;
-    if (this.pendingKeysByIdentity.size > 0) {
-      const pendingKeys = Array.from(this.pendingKeysByIdentity.values());
+    if (this.pendingKeysByIdentity.size === 0) {
+      this.reset();
+      for (const deferred of deferreds) {
+        deferred.resolve(this.collectResults(deferred));
+      }
+      return;
+    }
 
+    const pendingKeys = Array.from(this.pendingKeysByIdentity.values());
+    const pendingIdentities = this.map
+      ? Array.from(this.pendingKeysByIdentity.keys())
+      : null;
+    this.reset();
+
+    const finalize = (ret: unknown[] | void): void => {
       if (this.map) {
-        const pendingIdentities = Array.from(this.pendingKeysByIdentity.keys());
-        this.reset();
-
-        const results = this.performMap(pendingKeys, context);
+        const results = ret as unknown[];
         if (pendingKeys.length !== results.length) {
           throw new ImplementationError(
             `Wrong number of results. Expected ${pendingKeys.length}, got ${results.length}`,
           );
         }
-        for (let i = 0; i < pendingIdentities.length; i++) {
-          this.resultsByIdentity.set(pendingIdentities[i], results[i]);
+        const identities = pendingIdentities as unknown[];
+        for (let i = 0; i < identities.length; i++) {
+          this.resultsByIdentity.set(identities[i], results[i]);
         }
-      } else {
-        this.reset();
-        this.perform(pendingKeys, context);
       }
-    } else {
-      this.reset();
-    }
+      for (const deferred of deferreds) {
+        deferred.resolve(this.collectResults(deferred));
+      }
+    };
 
-    for (const deferred of deferreds) {
-      deferred.resolve(this.collectResults(deferred));
+    if (this.async) {
+      return Promise.resolve(this.performAsync(pendingKeys, context)).then(finalize);
     }
+    finalize(this.perform(pendingKeys, context));
   }
 
   reset(): void {
