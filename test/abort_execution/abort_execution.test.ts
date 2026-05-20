@@ -1,3 +1,5 @@
+import assert from "node:assert/strict";
+import { beforeEach, describe, test } from "node:test";
 import { buildSchema } from "graphql";
 import {
   Executor,
@@ -119,7 +121,7 @@ describe("abort execution", () => {
       source,
     );
 
-    expect(result).toEqual({
+    assert.deepStrictEqual(result, {
       errors: [{
         message: "Cannot return null for non-nullable field Query.must",
         path: ["mayList", 0, "must"],
@@ -132,7 +134,7 @@ describe("abort execution", () => {
       },
     });
 
-    expect(EventCollector.events).toEqual([
+    assert.deepStrictEqual(EventCollector.events, [
       "mayList",
       "mustObj",
       "may",
@@ -156,8 +158,8 @@ describe("abort execution", () => {
       source,
     );
 
-    expect(result.data).toBeNull();
-    expect(EventCollector.events).toEqual([
+    assert.strictEqual(result.data, null);
+    assert.deepStrictEqual(EventCollector.events, [
       "mustObj",
       "mayList",
       "must",
@@ -187,7 +189,7 @@ describe("abort execution", () => {
       source,
     );
 
-    expect(result).toEqual({
+    assert.deepStrictEqual(result, {
       errors: [{
         message: "Cannot return null for non-nullable field Query.must",
         extensions: { code: "INVALID_NULL" },
@@ -202,7 +204,7 @@ describe("abort execution", () => {
       },
     });
 
-    expect(EventCollector.events).toEqual([
+    assert.deepStrictEqual(EventCollector.events, [
       "mayList",
       "mustObj",
       "mustObj",

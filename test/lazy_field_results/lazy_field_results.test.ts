@@ -1,3 +1,5 @@
+import assert from "node:assert/strict";
+import { beforeEach, describe, test } from "node:test";
 import { buildSchema } from "graphql";
 import {
   Executor,
@@ -157,8 +159,8 @@ describe("lazy field results", () => {
       source,
     );
 
-    expect(result).toEqual({ data: source });
-    expect(EventCollector.events).toEqual([["a", "x"], ["b", "y"], ["c", "z"]]);
+    assert.deepStrictEqual(result, { data: source });
+    assert.deepStrictEqual(EventCollector.events, [["a", "x"], ["b", "y"], ["c", "z"]]);
   });
 
   test("chains multiple lazy loads", () => {
@@ -172,7 +174,7 @@ describe("lazy field results", () => {
 
     const result = executeOp(`{ widgets { lazyChain } }`, source);
 
-    expect(result).toEqual({
+    assert.deepStrictEqual(result, {
       data: {
         widgets: [
           { lazyChain: "He-a-b-fin" },
@@ -181,7 +183,7 @@ describe("lazy field results", () => {
         ],
       },
     });
-    expect(EventCollector.events).toEqual([
+    assert.deepStrictEqual(EventCollector.events, [
       ["He", "Ne", "Ar"],
       ["He-a", "Ne-a", "Ar-a"],
     ]);
@@ -193,7 +195,7 @@ describe("lazy field results", () => {
       { fulfillment: "TEST" },
       { fulfillByIdentity: false },
     );
-    expect(result).toEqual({ data: { fulfillment: "TEST via key" } });
+    assert.deepStrictEqual(result, { data: { fulfillment: "TEST via key" } });
   });
 
   test("fulfillment by identity uses identityFor normalization", () => {
@@ -202,6 +204,6 @@ describe("lazy field results", () => {
       { fulfillment: "TEST" },
       { fulfillByIdentity: true },
     );
-    expect(result).toEqual({ data: { fulfillment: "TEST via identity" } });
+    assert.deepStrictEqual(result, { data: { fulfillment: "TEST via identity" } });
   });
 });

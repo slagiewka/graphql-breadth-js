@@ -1,3 +1,5 @@
+import assert from "node:assert/strict";
+import { describe, test } from "node:test";
 import { Executor } from "../../src";
 import { STAR_WARS_SCHEMA, STAR_WARS_RESOLVERS } from "./star_wars_fixtures";
 
@@ -22,7 +24,7 @@ describe("StarWars query", () => {
 
     const result = executeStarWars(query);
 
-    expect(result).toEqual({
+    assert.deepStrictEqual(result, {
       data: {
         hero: {
           name: "R2-D2",
@@ -42,7 +44,7 @@ describe("StarWars query", () => {
 
     const result = executeStarWars(query);
 
-    expect(result).toEqual({
+    assert.deepStrictEqual(result, {
       data: {
         hero: {
           name: "R2-D2",
@@ -66,7 +68,7 @@ describe("StarWars query", () => {
 
     const result = executeStarWars(query);
 
-    expect(result).toEqual({
+    assert.deepStrictEqual(result, {
       data: {
         hero: {
           id: "2001",
@@ -99,7 +101,7 @@ describe("StarWars query", () => {
 
     const result = executeStarWars(query);
 
-    expect(result).toEqual({
+    assert.deepStrictEqual(result, {
       data: {
         hero: {
           name: "R2-D2",
@@ -150,7 +152,7 @@ describe("StarWars query", () => {
 
     const result = executeStarWars(query);
 
-    expect(result).toEqual({
+    assert.deepStrictEqual(result, {
       data: {
         human: {
           name: "Luke Skywalker",
@@ -170,7 +172,7 @@ describe("StarWars query", () => {
 
     const result = executeStarWars(query, { someId: "1000" });
 
-    expect(result).toEqual({
+    assert.deepStrictEqual(result, {
       data: {
         human: {
           name: "Luke Skywalker",
@@ -190,7 +192,7 @@ describe("StarWars query", () => {
 
     const result = executeStarWars(query, { someId: "1002" });
 
-    expect(result).toEqual({
+    assert.deepStrictEqual(result, {
       data: {
         human: {
           name: "Han Solo",
@@ -210,7 +212,7 @@ describe("StarWars query", () => {
 
     const result = executeStarWars(query, { id: "not a valid id" });
 
-    expect(result).toEqual({
+    assert.deepStrictEqual(result, {
       data: {
         human: null,
       },
@@ -228,7 +230,7 @@ describe("StarWars query", () => {
 
     const result = executeStarWars(query);
 
-    expect(result).toEqual({
+    assert.deepStrictEqual(result, {
       data: {
         luke: {
           name: "Luke Skywalker",
@@ -251,7 +253,7 @@ describe("StarWars query", () => {
 
     const result = executeStarWars(query);
 
-    expect(result).toEqual({
+    assert.deepStrictEqual(result, {
       data: {
         luke: {
           name: "Luke Skywalker",
@@ -279,7 +281,7 @@ describe("StarWars query", () => {
 
     const result = executeStarWars(query);
 
-    expect(result).toEqual({
+    assert.deepStrictEqual(result, {
       data: {
         luke: {
           name: "Luke Skywalker",
@@ -312,7 +314,7 @@ describe("StarWars query", () => {
 
     const result = executeStarWars(query);
 
-    expect(result).toEqual({
+    assert.deepStrictEqual(result, {
       data: {
         luke: {
           name: "Luke Skywalker",
@@ -338,7 +340,7 @@ describe("StarWars query", () => {
 
     const result = executeStarWars(query);
 
-    expect(result).toEqual({
+    assert.deepStrictEqual(result, {
       data: {
         hero: {
           __typename: "Droid",
@@ -360,7 +362,7 @@ describe("StarWars query", () => {
 
     const result = executeStarWars(query);
 
-    expect(result).toEqual({
+    assert.deepStrictEqual(result, {
       data: {
         hero: {
           __typename: "Human",
@@ -382,7 +384,7 @@ describe("StarWars query", () => {
 
     const result = executeStarWars(query);
 
-    expect(result).toEqual({
+    assert.deepStrictEqual(result, {
       data: {
         hero: {
           name: "R2-D2",
@@ -414,7 +416,7 @@ describe("StarWars query", () => {
 
     const result = executeStarWars(query);
 
-    expect(result).toEqual({
+    assert.deepStrictEqual(result, {
       data: {
         hero: {
           name: "R2-D2",
@@ -457,7 +459,7 @@ describe("StarWars query", () => {
 
     const result = executeStarWars(query);
 
-    expect(result).toEqual({
+    assert.deepStrictEqual(result, {
       data: {
         mainHero: {
           name: "R2-D2",
