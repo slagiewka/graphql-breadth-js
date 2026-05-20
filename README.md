@@ -4,7 +4,7 @@ A basic breadth-first GraphQL executor based on [Shopify's Cardinal engine](http
 
 Unlike graphql-js depth traversal, this executor operates breadth-first: every object at a given depth resolves the same field together, then the executor descends a level. This allows per-field overhead to amortize across the entire breadth of a level, and lets lazy loads batch using one Promise _per selection_ rather than _per field instance_.
 
-_Highly experimental._
+_JavaScript implementation is experimental._
 
 ## Benchmarks
 
