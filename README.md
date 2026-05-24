@@ -2,9 +2,11 @@
 
 A basic breadth-first GraphQL executor based on [Shopify's Cardinal engine](https://shopify.engineering/faster-breadth-first-graphql-execution). Written in TypeScript, built on top of [graphql-js](https://github.com/graphql/graphql-js) for parsing, type system, and input coercion.
 
-Unlike graphql-js depth traversal, this executor operates breadth-first: every object at a given depth resolves the same field together, then the executor descends a level. This allows per-field overhead to amortize across the entire breadth of a level, and lets lazy loads batch using one Promise _per selection_ rather than _per field instance_.
+Unlike graphql-js depth traversal, this executor operates breadth-first: every object at a given depth resolves the same field together. This allows per-field overhead to amortize across the entire breadth of a level, and lets lazy loads batch using one Promise _per selection_ rather than _per field instance_.
 
-_JavaScript implementation is experimental._
+Breadth traversal does still eagerly process into nested selections. Every eager document selection is processed breadth-first before starting on any lazy selections, so the execution model is no more blocking than standard (non-deferred) depth-based execution.
+
+_JavaScript implementation is experimental. No support for subscriptions, defer, and stream in this basic build._
 
 ## Benchmarks
 
@@ -133,11 +135,6 @@ pnpm run mem:list
 FIELDS=lazy pnpm run mem:list
 pnpm run mem:tree-list
 ```
-
-## Caveats
-
-- No subscriptions, defer, or stream. Theoretically possible with major rearchitectures.
-- Breadth-first assumes that all objects at a level _want to batch_. If you have slowest-object-blocking concerns, then you want traditional tree-based resolution.
 
 ## Install
 
