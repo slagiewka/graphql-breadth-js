@@ -4,7 +4,7 @@ A basic breadth-first GraphQL executor based on [Shopify's Cardinal engine](http
 
 Unlike graphql-js depth traversal, this executor operates breadth-first: every object at a given depth resolves the same field together. This allows per-field overhead to amortize across the entire breadth of a level, and lets lazy loads batch using one Promise _per selection_ rather than _per field instance_.
 
-Breadth traversal does still eagerly process into nested selections. Every eager document selection is processed breadth-first before starting on any lazy selections, so the execution model is no more blocking than standard (non-deferred) depth-based execution using Dataloader to achieve breadth batching.
+Note that breadth traversal does still eagerly drill into nested field selections, so this execution model is no more blocking than standard (non-deferred) depth-based execution using Dataloader for batching.
 
 _JavaScript implementation is experimental. No support for subscriptions, defer, and stream in this basic build._
 
