@@ -1,3 +1,5 @@
+import assert from "node:assert/strict";
+import { describe, test } from "node:test";
 import {
   GraphQLBoolean,
   GraphQLInt,
@@ -83,7 +85,7 @@ describe("graphql-js interpreter shim", () => {
       });
 
       const result = execute(schema, `{ ping uppered(values: ["a", "b", "c"]) }`);
-      expect(result).toEqual({ data: { ping: "pong", uppered: ["A", "B", "C"] } });
+      assert.deepStrictEqual(result, { data: { ping: "pong", uppered: ["A", "B", "C"] } });
     });
 
     test("receives args and context, in graphql-js argument order", () => {
@@ -109,8 +111,8 @@ describe("graphql-js interpreter shim", () => {
         context: { user: "ada" },
       });
 
-      expect(result).toEqual({ data: { echo: "hi" } });
-      expect(seen).toEqual([
+      assert.deepStrictEqual(result, { data: { echo: "hi" } });
+      assert.deepStrictEqual(seen, [
         { source: { tag: "root" }, args: { value: "hi" }, context: { user: "ada" } },
       ]);
     });
@@ -124,7 +126,7 @@ describe("graphql-js interpreter shim", () => {
       const result = execute(schema, `{ widget { sku label } }`, {
         rootObject: { widget },
       });
-      expect(result).toEqual({ data: { widget: { sku: "abc-123", label: "Hello" } } });
+      assert.deepStrictEqual(result, { data: { widget: { sku: "abc-123", label: "Hello" } } });
     });
 
     test("an error thrown by an interpreted resolver surfaces as a field error", () => {
@@ -143,8 +145,8 @@ describe("graphql-js interpreter shim", () => {
       });
 
       const result = execute(schema, `{ boom }`);
-      expect(result.data).toEqual({ boom: null });
-      expect(result.errors?.[0]?.message).toBe("interpreted boom");
+      assert.deepStrictEqual(result.data, { boom: null });
+      assert.strictEqual(result.errors?.[0]?.message, "interpreted boom");
     });
 
     test("the info argument is populated with field, schema, and document state", () => {
@@ -185,21 +187,21 @@ describe("graphql-js interpreter shim", () => {
          fragment F on Query { __typename }`,
         { variables: { id: "1" }, rootObject: { tag: "root" } },
       );
-      expect(result.data).toEqual({ user: { name: "ada" }, __typename: "Query" });
-      expect(captured.fieldName).toBe("user");
-      expect(Array.isArray(captured.fieldNodes)).toBe(true);
-      expect((captured.fieldNodes as Array<{ name: { value: string } }>)[0]?.name.value).toBe(
+      assert.deepStrictEqual(result.data, { user: { name: "ada" }, __typename: "Query" });
+      assert.strictEqual(captured.fieldName, "user");
+      assert.strictEqual(Array.isArray(captured.fieldNodes), true);
+      assert.strictEqual((captured.fieldNodes as Array<{ name: { value: string } }>)[0]?.name.value,
         "user",
       );
-      expect(captured.returnType).toBe(userType);
-      expect((captured.parentType as GraphQLObjectType).name).toBe("Query");
-      expect(captured.schema).toBe(schema);
-      expect((captured.fragments as Record<string, { name: { value: string } }>).F?.name.value).toBe(
+      assert.strictEqual(captured.returnType, userType);
+      assert.strictEqual((captured.parentType as GraphQLObjectType).name, "Query");
+      assert.strictEqual(captured.schema, schema);
+      assert.strictEqual((captured.fragments as Record<string, { name: { value: string } }>).F?.name.value,
         "F",
       );
-      expect(captured.rootValue).toEqual({ tag: "root" });
-      expect((captured.operation as { operation: string }).operation).toBe("query");
-      expect(captured.variableValues).toEqual({ id: "1" });
+      assert.deepStrictEqual(captured.rootValue, { tag: "root" });
+      assert.strictEqual((captured.operation as { operation: string }).operation, "query");
+      assert.deepStrictEqual(captured.variableValues, { id: "1" });
     });
 
     test("accessing info.path throws ImplementationError", () => {
@@ -215,8 +217,8 @@ describe("graphql-js interpreter shim", () => {
         }),
       });
 
-      expect(() => execute(schema, `{ usesPath }`)).toThrow(ImplementationError);
-      expect(() => execute(schema, `{ usesPath }`)).toThrow(
+      assert.throws(() => execute(schema, `{ usesPath }`), ImplementationError);
+      assert.throws(() => execute(schema, `{ usesPath }`),
         /accessed 'info\.path'.*no per-object resolution path/,
       );
     });
@@ -235,7 +237,7 @@ describe("graphql-js interpreter shim", () => {
       };
 
       const result = execute(schema, `{ greet(name: "ada") }`, { resolvers });
-      expect(result).toEqual({ data: { greet: "hello ada" } });
+      assert.deepStrictEqual(result, { data: { greet: "hello ada" } });
     });
   });
 
@@ -254,7 +256,7 @@ describe("graphql-js interpreter shim", () => {
       });
 
       const result = await executeAsync(schema, `{ value }`);
-      expect(result).toEqual({ data: { value: "hello" } });
+      assert.deepStrictEqual(result, { data: { value: "hello" } });
     });
 
     test("a rejected Promise becomes a field error", async () => {
@@ -271,8 +273,8 @@ describe("graphql-js interpreter shim", () => {
       });
 
       const result = await executeAsync(schema, `{ boom }`);
-      expect(result.data).toEqual({ boom: null });
-      expect(result.errors?.[0]?.message).toBe("async boom");
+      assert.deepStrictEqual(result.data, { boom: null });
+      assert.strictEqual(result.errors?.[0]?.message, "async boom");
     });
 
     test("a Promise that rejects with a non-Error reason still produces a field error", async () => {
@@ -289,8 +291,8 @@ describe("graphql-js interpreter shim", () => {
       });
 
       const result = await executeAsync(schema, `{ boom }`);
-      expect(result.data).toEqual({ boom: null });
-      expect(result.errors?.[0]?.message).toBe("stringly typed");
+      assert.deepStrictEqual(result.data, { boom: null });
+      assert.strictEqual(result.errors?.[0]?.message, "stringly typed");
     });
 
     test("mixed sync and async resolvers across parent objects merge correctly", async () => {
@@ -330,7 +332,7 @@ describe("graphql-js interpreter shim", () => {
       });
 
       const result = await executeAsync(schema, `{ items { id name } }`);
-      expect(result).toEqual({
+      assert.deepStrictEqual(result, {
         data: {
           items: [
             { id: "1", name: "sync-1" },
@@ -377,7 +379,7 @@ describe("graphql-js interpreter shim", () => {
         });
 
         const result = await executeAsync(schema, `{ items { doubled } }`);
-        expect(result).toEqual({
+        assert.deepStrictEqual(result, {
           data: {
             items: [
               { doubled: "2" },
@@ -387,8 +389,8 @@ describe("graphql-js interpreter shim", () => {
             ],
           },
         });
-        expect(performCalls).toBe(1);
-        expect(totalKeys).toBe(4);
+        assert.strictEqual(performCalls, 1);
+        assert.strictEqual(totalKeys, 4);
       } finally {
         InterpretedPromiseLoader.prototype.performAsync = originalPerform;
       }
@@ -428,7 +430,7 @@ describe("graphql-js interpreter shim", () => {
       });
 
       const result = await executeAsync(schema, `{ outer { inner { tag } } }`);
-      expect(result).toEqual({
+      assert.deepStrictEqual(result, {
         data: { outer: { inner: { tag: "tag-x" } } },
       });
     });
@@ -441,11 +443,11 @@ describe("graphql-js interpreter shim", () => {
       `);
       const map = interpretSchema(schema);
 
-      expect(Object.keys(map).sort()).toEqual(["Query"]);
-      expect(map["Query"]).toBeDefined();
+      assert.deepStrictEqual(Object.keys(map).sort(), ["Query"]);
+      assert.notStrictEqual(map["Query"], undefined);
       // SDL-built fields have no `.resolve`, so the shim falls back to a
       // breadth-native key resolver. When a `.resolve` is defined, it wraps.
-      expect(map["Query"]?.["ping"]).toBeInstanceOf(FieldResolver);
+      assert.ok(map["Query"]?.["ping"] instanceof FieldResolver);
     });
 
     test("wraps fields with explicit .resolve in an InterpretedFieldResolver", () => {
@@ -456,14 +458,14 @@ describe("graphql-js interpreter shim", () => {
         }),
       });
       const map = interpretSchema(schema);
-      expect(map["Query"]?.["ping"]).toBeInstanceOf(InterpretedFieldResolver);
+      assert.ok(map["Query"]?.["ping"] instanceof InterpretedFieldResolver);
     });
 
     test("opt-in flag includes introspection types", () => {
       const schema = buildSchema(`type Query { ping: String }`);
       const map = interpretSchema(schema, undefined, { includeIntrospectionTypes: true });
 
-      expect(Object.keys(map)).toEqual(expect.arrayContaining(["Query", "__Schema", "__Type"]));
+      assert.ok(["Query", "__Schema", "__Type"].every((key) => Object.keys(map).includes(key)));
     });
 
     test("interfaces dispatch via abstractType.resolveType when defined", () => {
@@ -500,7 +502,7 @@ describe("graphql-js interpreter shim", () => {
         schema,
         `{ hero { name ... on Jedi { saberColor } ... on Sith { darkSide } } }`,
       );
-      expect(result).toEqual({
+      assert.deepStrictEqual(result, {
         data: { hero: { name: "Luke", saberColor: "green" } },
       });
     });
@@ -540,7 +542,7 @@ describe("graphql-js interpreter shim", () => {
         schema,
         `{ hero { name ... on Jedi { saberColor } ... on Sith { darkSide } } }`,
       );
-      expect(result).toEqual({ data: { hero: { name: "Vader", darkSide: true } } });
+      assert.deepStrictEqual(result, { data: { hero: { name: "Vader", darkSide: true } } });
     });
 
     test("unions dispatch via resolveType returning a GraphQLObjectType", () => {
@@ -573,7 +575,7 @@ describe("graphql-js interpreter shim", () => {
         schema,
         `{ who { ... on Jedi { name } ... on Sith { name } } }`,
       );
-      expect(result).toEqual({ data: { who: { name: "Maul" } } });
+      assert.deepStrictEqual(result, { data: { who: { name: "Maul" } } });
     });
 
     test("a resolveType returning a Promise throws ImplementationError", () => {
@@ -595,7 +597,7 @@ describe("graphql-js interpreter shim", () => {
       });
       const schema = new GraphQLSchema({ query: Query, types: [Jedi] });
 
-      expect(() => execute(schema, `{ hero { name } }`)).toThrow(
+      assert.throws(() => execute(schema, `{ hero { name } }`),
         /resolveType for 'Character' returned a Promise/,
       );
     });
@@ -631,7 +633,7 @@ describe("graphql-js interpreter shim", () => {
       });
 
       const result = execute(schema, `{ greeting(name: "ada") version }`, { resolvers });
-      expect(result).toEqual({
+      assert.deepStrictEqual(result, {
         data: { greeting: "interpreted hello ada", version: "native-2.0" },
       });
     });
@@ -695,7 +697,7 @@ describe("graphql-js interpreter shim", () => {
       });
 
       const result = execute(schema, `{ items { id name score } }`, { resolvers });
-      expect(result).toEqual({
+      assert.deepStrictEqual(result, {
         data: {
           items: [
             { id: "1", name: "ALPHA", score: 10 },
@@ -704,8 +706,8 @@ describe("graphql-js interpreter shim", () => {
           ],
         },
       });
-      expect(loaderCalls).toBe(1);
-      expect(lastBatchSize).toBe(3);
+      assert.strictEqual(loaderCalls, 1);
+      assert.strictEqual(lastBatchSize, 3);
     });
 
     test("an interpreted async resolver and a native LazyLoader cooperate in one query", async () => {
@@ -762,7 +764,7 @@ describe("graphql-js interpreter shim", () => {
       });
 
       const result = await executeAsync(schema, `{ items { id tag score } }`, { resolvers });
-      expect(result).toEqual({
+      assert.deepStrictEqual(result, {
         data: {
           items: [
             { id: "1", tag: "tag-1", score: 10 },
@@ -771,7 +773,7 @@ describe("graphql-js interpreter shim", () => {
           ],
         },
       });
-      expect(scoreLoaderCalls).toBe(1);
+      assert.strictEqual(scoreLoaderCalls, 1);
     });
   });
 
@@ -832,7 +834,7 @@ describe("graphql-js interpreter shim", () => {
           }
         }`,
       );
-      expect(result).toEqual({
+      assert.deepStrictEqual(result, {
         data: {
           heroes: [
             { id: "1", name: "Luke", side: "LIGHT", saberColor: "green" },
@@ -849,7 +851,7 @@ describe("graphql-js interpreter shim", () => {
         `query Lookup($id: ID!) { character(id: $id) { name } }`,
         { variables: { id: "2" } },
       );
-      expect(result).toEqual({ data: { character: { name: "Vader" } } });
+      assert.deepStrictEqual(result, { data: { character: { name: "Vader" } } });
     });
   });
 });

@@ -1,3 +1,5 @@
+import assert from "node:assert/strict";
+import { describe, test } from "node:test";
 import { buildSchema, executeSync, getIntrospectionQuery, parse } from "graphql";
 import { Executor, type GraphQLResult } from "../../src";
 
@@ -86,7 +88,7 @@ describe("introspection", () => {
       { planet: {} },
     );
     // Planet has no resolver so name is null, but __typename comes from introspection.
-    expect(result.data).toEqual({ planet: { __typename: "Planet", name: null } });
+    assert.deepStrictEqual(result.data, { planet: { __typename: "Planet", name: null } });
   });
 
   test("resolves the __schema entrypoint at the root", () => {
@@ -97,7 +99,7 @@ describe("introspection", () => {
         subscriptionType { name }
       }
     }`);
-    expect(result.data).toEqual({
+    assert.deepStrictEqual(result.data, {
       __schema: {
         queryType: { name: "Query" },
         mutationType: { name: "Mutation" },
@@ -114,7 +116,7 @@ describe("introspection", () => {
       filter: __type(name: "HeroFilter") { name kind }
       missing: __type(name: "Nope") { name }
     }`);
-    expect(result.data).toEqual({
+    assert.deepStrictEqual(result.data, {
       jedi: { name: "Jedi", kind: "OBJECT", description: "A force-using person." },
       hero: { name: "Hero", kind: "UNION" },
       episode: { name: "Episode", kind: "ENUM" },
@@ -134,8 +136,8 @@ describe("introspection", () => {
       }
     }`) as { data: { __type: { fields: Array<{ name: string }> } } };
     const fieldNames = result.data.__type.fields.map((f) => f.name);
-    expect(fieldNames).toEqual(["id", "name", "saberColor"]);
-    expect(result.data.__type.fields).toContainEqual({
+    assert.deepStrictEqual(fieldNames, ["id", "name", "saberColor"]);
+    assert.deepStrictEqual(result.data.__type.fields.find((f) => f.name === "saberColor"), {
       name: "saberColor",
       description: "Color of the lightsaber.",
       isDeprecated: false,
@@ -159,7 +161,7 @@ describe("introspection", () => {
       };
     };
     const deprecated = result.data.__type.fields.find((f) => f.name === "oldField");
-    expect(deprecated).toEqual({
+    assert.deepStrictEqual(deprecated, {
       name: "oldField",
       isDeprecated: true,
       deprecationReason: "use name",
@@ -189,7 +191,7 @@ describe("introspection", () => {
       };
     };
     const idField = result.data.__type.fields.find((f) => f.name === "id")!;
-    expect(idField.type).toEqual({
+    assert.deepStrictEqual(idField.type, {
       kind: "NON_NULL",
       name: null,
       ofType: { kind: "SCALAR", name: "ID" },
@@ -221,19 +223,19 @@ describe("introspection", () => {
         filter: { inputFields: Array<{ name: string; defaultValue: string | null }> };
       };
     };
-    expect(result.data.jedi.interfaces).toEqual([
+    assert.deepStrictEqual(result.data.jedi.interfaces, [
       { name: "Character", kind: "INTERFACE" },
     ]);
-    expect(result.data.hero.possibleTypes.map((t) => t.name).sort()).toEqual([
+    assert.deepStrictEqual(result.data.hero.possibleTypes.map((t) => t.name).sort(), [
       "Jedi",
       "Sith",
     ]);
-    expect(result.data.character.possibleTypes.map((t) => t.name).sort()).toEqual([
+    assert.deepStrictEqual(result.data.character.possibleTypes.map((t) => t.name).sort(), [
       "Jedi",
       "Sith",
     ]);
     // Deprecated input fields filtered by default.
-    expect(result.data.filter.inputFields).toEqual([
+    assert.deepStrictEqual(result.data.filter.inputFields, [
       { name: "name", defaultValue: '"Luke"' },
       { name: "minAge", defaultValue: null },
     ]);
@@ -259,11 +261,11 @@ describe("introspection", () => {
         };
       };
     };
-    expect(result.data.default.enumValues.map((v) => v.name)).toEqual([
+    assert.deepStrictEqual(result.data.default.enumValues.map((v) => v.name), [
       "NEWHOPE",
       "EMPIRE",
     ]);
-    expect(result.data.all.enumValues).toContainEqual({
+    assert.deepStrictEqual(result.data.all.enumValues.find((v) => v.name === "JEDI"), {
       name: "JEDI",
       isDeprecated: true,
       deprecationReason: "spoiler",
@@ -293,9 +295,9 @@ describe("introspection", () => {
       };
     };
     const skip = result.data.__schema.directives.find((d) => d.name === "skip")!;
-    expect(skip.isRepeatable).toBe(false);
-    expect(skip.locations).toEqual(["FIELD", "FRAGMENT_SPREAD", "INLINE_FRAGMENT"]);
-    expect(skip.args).toEqual([
+    assert.strictEqual(skip.isRepeatable, false);
+    assert.deepStrictEqual(skip.locations, ["FIELD", "FRAGMENT_SPREAD", "INLINE_FRAGMENT"]);
+    assert.deepStrictEqual(skip.args, [
       {
         name: "if",
         type: { kind: "NON_NULL", ofType: { name: "Boolean" } },
@@ -310,7 +312,7 @@ describe("introspection", () => {
       objectEnumValues: __type(name: "Jedi") { enumValues { name } }
       objectInputFields: __type(name: "Jedi") { inputFields { name } }
     }`);
-    expect(result.data).toEqual({
+    assert.deepStrictEqual(result.data, {
       unionFields: { fields: null },
       scalarFields: { fields: null },
       objectEnumValues: { enumValues: null },
@@ -351,8 +353,8 @@ describe("introspection", () => {
       };
     };
     const saveHero = result.data.__type.fields.find((f) => f.name === "saveHero")!;
-    expect(saveHero.some.map((a) => a.name)).toEqual(["name"]);
-    expect(saveHero.all).toEqual([
+    assert.deepStrictEqual(saveHero.some.map((a) => a.name), ["name"]);
+    assert.deepStrictEqual(saveHero.all, [
       {
         name: "name",
         description: null,
@@ -422,7 +424,7 @@ describe("introspection", () => {
     };
     for (const field of result.data.__type.fields) {
       const got = field.args[0]?.defaultValue;
-      expect(got).toEqual(expected[field.name]);
+      assert.deepStrictEqual(got, expected[field.name]);
     }
   });
 
@@ -430,17 +432,17 @@ describe("introspection", () => {
     const document = parse(getIntrospectionQuery());
     const ours = execute(getIntrospectionQuery());
     const reference = executeSync({ schema, document });
-    expect(ours.errors).toBeUndefined();
-    expect(reference.errors).toBeUndefined();
+    assert.strictEqual(ours.errors, undefined);
+    assert.strictEqual(reference.errors, undefined);
     // graphql-js doesn't guarantee field-order stability across implementations;
     // normalize both sides by sorting named arrays before comparing.
-    expect(normalize(ours.data)).toEqual(normalize(reference.data));
+    assert.deepStrictEqual(normalize(ours.data), normalize(reference.data));
   });
 
   test("answers the full standard introspection query", () => {
     const result = execute(getIntrospectionQuery());
-    expect(result.errors).toBeUndefined();
-    expect(result.data).toBeDefined();
+    assert.strictEqual(result.errors, undefined);
+    assert.notStrictEqual(result.data, undefined);
     const data = result.data as { __schema: { types: Array<{ name: string }> } };
     const typeNames = data.__schema.types.map((t) => t.name);
     // Custom types and standard scalars should all be present.
@@ -466,7 +468,7 @@ describe("introspection", () => {
       "__TypeKind",
       "__DirectiveLocation",
     ]) {
-      expect(typeNames).toContain(expected);
+      assert.ok(typeNames.includes(expected));
     }
   });
 });

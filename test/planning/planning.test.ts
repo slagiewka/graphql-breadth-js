@@ -1,3 +1,5 @@
+import assert from "node:assert/strict";
+import { beforeEach, describe, test } from "node:test";
 import { buildSchema } from "graphql";
 import {
   Executor,
@@ -110,7 +112,7 @@ describe("planning", () => {
       b: product { id }
     }`);
 
-    expect(EventCollector.events).toEqual([
+    assert.deepStrictEqual(EventCollector.events, [
       "plan(b/id)",
       "plan(b)",
       "plan(a/video/id)",
@@ -171,6 +173,6 @@ describe("planning", () => {
       source,
     );
 
-    expect(result.data).toEqual(expected);
+    assert.deepStrictEqual(result.data, expected);
   });
 });

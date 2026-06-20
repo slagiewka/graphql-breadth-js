@@ -1,3 +1,5 @@
+import assert from "node:assert/strict";
+import { describe, test } from "node:test";
 import { buildSchema } from "graphql";
 import { Executor, FieldResolver, type ResolverMap } from "../../src";
 import type { ExecutionField } from "../../src/executor/execution_field";
@@ -64,14 +66,14 @@ function run(query: string, variables: Record<string, unknown> = {}) {
 describe("argument coercion (graphql-js native)", () => {
   test("applies argument default values", () => {
     const { result, echo } = run(`{ echo(value: "hi") }`);
-    expect(result).toEqual({ data: { echo: "hi" } });
-    expect(echo.lastArgs).toEqual({ value: "hi", count: 1 });
+    assert.deepStrictEqual(result, { data: { echo: "hi" } });
+    assert.deepStrictEqual(echo.lastArgs, { value: "hi", count: 1 });
   });
 
   test("coerces enum literals to their external values", () => {
     const { result, echo } = run(`{ echo(value: "hi", color: RED, count: 2) }`);
-    expect(result).toEqual({ data: { echo: "hi-REDhi-RED" } });
-    expect(echo.lastArgs).toEqual({ value: "hi", color: "RED", count: 2 });
+    assert.deepStrictEqual(result, { data: { echo: "hi-REDhi-RED" } });
+    assert.deepStrictEqual(echo.lastArgs, { value: "hi", color: "RED", count: 2 });
   });
 
   test("substitutes variables with type coercion", () => {
@@ -79,13 +81,13 @@ describe("argument coercion (graphql-js native)", () => {
       `query ($v: String!, $n: Int, $c: Color) { echo(value: $v, count: $n, color: $c) }`,
       { v: "yo", n: 3, c: "BLUE" },
     );
-    expect(result).toEqual({ data: { echo: "yo-BLUEyo-BLUEyo-BLUE" } });
-    expect(echo.lastArgs).toEqual({ value: "yo", count: 3, color: "BLUE" });
+    assert.deepStrictEqual(result, { data: { echo: "yo-BLUEyo-BLUEyo-BLUE" } });
+    assert.deepStrictEqual(echo.lastArgs, { value: "yo", count: 3, color: "BLUE" });
   });
 
   test("coerces input objects with nested defaults", () => {
     const { result } = run(`{ bucket(filter: { min: 3 }) }`);
-    expect(result).toEqual({
+    assert.deepStrictEqual(result, {
       data: { bucket: [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100] },
     });
   });
@@ -95,15 +97,15 @@ describe("argument coercion (graphql-js native)", () => {
       `query ($c: Color!) { echo(value: "x", color: $c) }`,
       { c: "MAUVE" },
     );
-    expect(result.data).toBeUndefined();
-    expect(result.errors?.length).toBe(1);
-    expect(result.errors?.[0]?.message).toMatch(/MAUVE/);
+    assert.strictEqual(result.data, undefined);
+    assert.strictEqual(result.errors?.length, 1);
+    assert.match(result.errors?.[0]?.message ?? "", /MAUVE/);
   });
 
   test("surfaces invalid argument literals as field errors", () => {
     // Passing a non-existent enum literal is caught by graphql-js validation.
     const { result } = run(`{ echo(value: "x", color: PURPLE) }`);
-    expect(result.errors?.length).toBeGreaterThanOrEqual(1);
-    expect(result.errors?.[0]?.message).toMatch(/PURPLE|Color/);
+    assert.ok((result.errors?.length ?? 0) >= 1);
+    assert.match(result.errors?.[0]?.message ?? "", /PURPLE|Color/);
   });
 });
